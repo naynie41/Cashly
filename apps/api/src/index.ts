@@ -1,6 +1,13 @@
+// env must be imported first — crashes immediately if required vars are missing
+import { env } from './plugins/env.js'
+
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
-import jwt from '@fastify/jwt'
+
+import prismaPlugin from './plugins/prisma.js'
+import redisPlugin from './plugins/redis.js'
+import authPlugin from './plugins/auth.js'
+import meRoute from './routes/me.js'
 
 const server = Fastify({
   logger: {
@@ -8,34 +15,51 @@ const server = Fastify({
   },
 })
 
-// CORS
+// ── Plugins — order matters ───────────────────────────────────────────────────
+
+// 1. Prisma (other plugins depend on server.prisma)
+await server.register(prismaPlugin)
+
+// 2. Redis
+await server.register(redisPlugin)
+
+// 3. CORS — must be before auth so preflight requests get the right headers
 await server.register(cors, {
-  origin: process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
+  origin: env.FRONTEND_URL,
   credentials: true,
 })
 
-// JWT
-await server.register(jwt, {
-  secret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
-})
+// 4. Auth — mounts /api/auth/* and exports requireAuth
+await server.register(authPlugin)
 
-// Health check — required for ECS target group health checks
+// ── Routes ────────────────────────────────────────────────────────────────────
+
 server.get('/health', async (_request, reply) => {
-  return reply.code(200).send({ status: 'ok' })
+  return reply.code(200).send({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Root
 server.get('/', async (_request, reply) => {
   return reply.send({ name: 'cashly-api', version: '0.0.1' })
 })
 
-const port = Number(process.env['PORT'] ?? 3001)
-const host = process.env['HOST'] ?? '0.0.0.0'
+await server.register(meRoute)
+
+// ── Graceful shutdown ─────────────────────────────────────────────────────────
+
+const shutdown = async (signal: string) => {
+  server.log.info(`Received ${signal} — shutting down`)
+  await server.close()
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'))
+process.on('SIGINT', () => void shutdown('SIGINT'))
+
+// ── Start ─────────────────────────────────────────────────────────────────────
 
 try {
-  await server.listen({ port, host })
-  server.log.info(`API server listening on port ${port}`)
+  await server.listen({ port: env.PORT, host: '0.0.0.0' })
 } catch (err) {
-  server.log.error(err)
+  server.log.error(err, 'Server failed to start')
   process.exit(1)
 }

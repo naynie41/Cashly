@@ -8,20 +8,72 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id           String    @id @default(uuid())
-  name         String
-  email        String    @unique
-  passwordHash String?
-  googleId     String?   @unique
+// ── Better Auth tables ────────────────────────────────────────────────────────
+// Model names are lowercase to match Better Auth's Prisma adapter expectations.
+
+model user {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  // Cashly business fields — managed via our own API, not by Better Auth
   businessName String?
-  logoUrl      String?
-  brandColor   String?   @default("#6366f1")
-  currency     String    @default("NGN")
-  createdAt    DateTime  @default(now())
-  clients      Client[]
-  invoices     Invoice[]
+  brandColor   String  @default("#6366f1")
+  currency     String  @default("NGN")
+
+  sessions session[]
+  accounts account[]
+  clients  Client[]
+  invoices Invoice[]
 }
+
+model session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@unique([providerId, accountId])
+}
+
+model verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@unique([identifier, value])
+}
+
+// ── Business models ───────────────────────────────────────────────────────────
 
 model Client {
   id        String    @id @default(uuid())
@@ -31,7 +83,7 @@ model Client {
   phone     String?
   address   String?
   createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id])
+  user      user      @relation(fields: [userId], references: [id])
   invoices  Invoice[]
 }
 
@@ -51,7 +103,7 @@ model Invoice {
   notes         String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-  user          User          @relation(fields: [userId], references: [id])
+  user          user          @relation(fields: [userId], references: [id])
   client        Client        @relation(fields: [clientId], references: [id])
   lineItems     LineItem[]
   payment       Payment?
