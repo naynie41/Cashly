@@ -1,5 +1,11 @@
 # Cashly — Claude Code Project Guide
 
+## Frontend & design tasks
+
+When asked to build, design, or style any frontend component, page, or UI element — invoke the **Designer** skill before writing any code. This applies to: new pages, component styling, layout work, dashboards, forms, landing sections, or any task where visual quality matters.
+
+---
+
 ## What this project is
 
 Cashly is a fullstack invoice and cash flow management tool for small business owners and freelancers. It lets users create branded invoices, track payments, send automatic overdue reminders, and get a plain-English AI summary of their monthly cash flow.
@@ -29,6 +35,7 @@ Use `pnpm` workspaces. Run everything from the root. Never use `npm` or `yarn`.
 ## Tech stack
 
 ### Frontend — `apps/web`
+
 - **Next.js 14** with App Router (not Pages Router)
 - **Tailwind CSS** for styling
 - **React Hook Form** for all forms
@@ -36,6 +43,7 @@ Use `pnpm` workspaces. Run everything from the root. Never use `npm` or `yarn`.
 - **Deployed on Vercel**
 
 ### Backend — `apps/api`
+
 - **Fastify** (not Express) with TypeScript
 - **Prisma ORM** with PostgreSQL (Supabase)
 - **Better Auth** for authentication (email/password + Google OAuth)
@@ -44,6 +52,7 @@ Use `pnpm` workspaces. Run everything from the root. Never use `npm` or `yarn`.
 - **Deployed on Railway** (migrating to AWS ECS in the DevOps phase)
 
 ### Integrations
+
 - **Supabase** — hosted PostgreSQL database only. Use Prisma for all queries, never the Supabase JS client for DB access
 - **Paystack** — payments (NGN). Payment links per invoice, webhook for `charge.success`
 - **Resend + React Email** — transactional emails (invoice delivery, overdue reminders)
@@ -53,6 +62,7 @@ Use `pnpm` workspaces. Run everything from the root. Never use `npm` or `yarn`.
 - **Google OAuth** — social login
 
 ### Dev tooling
+
 - **TypeScript** everywhere — no plain JS files
 - **Zod** for all runtime validation (API request bodies, env vars)
 - **ESLint + Prettier** — enforced on all files
@@ -145,6 +155,7 @@ enum InvoiceStatus {
 ```
 
 **Rules:**
+
 - Never mutate the schema without creating a Prisma migration (`prisma migrate dev --name <name>`)
 - Always run `prisma generate` after schema changes
 - `Payment` is a separate table — not a field on `Invoice` — because Paystack sends a reference that must be stored and verified independently
@@ -184,6 +195,7 @@ apps/api/src/
 ```
 
 ### Fastify conventions
+
 - All routes are Fastify plugins registered with `fastify-plugin`
 - Every route handler has a Zod schema for request body and params — use `fastify-type-provider-zod`
 - Authentication middleware checks JWT on every protected route
@@ -247,6 +259,7 @@ apps/web/src/app/
 ```
 
 ### Frontend conventions
+
 - All data fetching in Server Components where possible; use Client Components only when interactivity is needed
 - API calls go through a typed fetch wrapper in `lib/api.ts` — never call `fetch` directly in components
 - React Hook Form for every form — no uncontrolled inputs
@@ -272,6 +285,7 @@ GOOGLE_CLIENT_SECRET=
 Build in this exact order. Do not skip ahead.
 
 ### Phase 1 — Foundation (current)
+
 - [x] Monorepo scaffold with pnpm workspaces
 - [ ] Prisma schema + Supabase connection
 - [ ] Fastify bootstrap with plugins (prisma, auth, env, cors)
@@ -281,6 +295,7 @@ Build in this exact order. Do not skip ahead.
 - **Done when:** A user can sign up, log in with Google, and hit a protected API route that returns their profile
 
 ### Phase 2 — Clients + invoice builder
+
 - [ ] Client CRUD (API + UI)
 - [ ] Invoice form with line items, tax, discount, live total calculation
 - [ ] Invoice list with status badges
@@ -289,6 +304,7 @@ Build in this exact order. Do not skip ahead.
 - **Done when:** A user can create a client, build an invoice, and see it in the list
 
 ### Phase 3 — PDF + email delivery
+
 - [ ] Puppeteer PDF generation (branded with user logo + color)
 - [ ] S3 upload + CloudFront signed URL
 - [ ] Resend email — send invoice to client with PDF attached and Pay Now button
@@ -296,6 +312,7 @@ Build in this exact order. Do not skip ahead.
 - **Done when:** Clicking "Send invoice" delivers a real email with a PDF
 
 ### Phase 4 — Paystack + webhooks + reminders
+
 - [ ] Paystack payment link per invoice
 - [ ] Webhook endpoint (`POST /payments/webhook`) — verify signature, mark invoice paid
 - [ ] BullMQ email queue for reliable delivery
@@ -304,6 +321,7 @@ Build in this exact order. Do not skip ahead.
 - **Done when:** A test payment flips the invoice to PAID automatically; overdue invoices trigger reminder emails
 
 ### Phase 5 — Dashboard + charts
+
 - [ ] Summary cards: total invoiced, received, outstanding, overdue
 - [ ] Monthly bar chart (Recharts) — income vs outstanding last 6 months
 - [ ] Client breakdown table — who owes what
@@ -311,6 +329,7 @@ Build in this exact order. Do not skip ahead.
 - **Done when:** The dashboard gives a full financial picture at a glance
 
 ### Phase 6 — AI monthly summary
+
 - [ ] Pull current month invoice data
 - [ ] Build structured prompt with real numbers
 - [ ] Call Claude API (`claude-sonnet-4-20250514`)
@@ -323,11 +342,13 @@ Build in this exact order. Do not skip ahead.
 ## Key business logic rules
 
 ### Invoice numbers
+
 - Format: `INV-0001`, `INV-0002`, etc. — scoped per user
 - Generated server-side, never client-side
 - Find the user's highest existing invoice number, increment by 1, zero-pad to 4 digits
 
 ### Invoice status transitions
+
 ```
 DRAFT → SENT       (when user clicks "Send invoice")
 SENT  → PAID       (when Paystack webhook fires charge.success)
@@ -336,17 +357,21 @@ PAID  → (terminal) (never change a paid invoice's status)
 ```
 
 ### Invoice total calculation
+
 ```
 subtotal = sum of (lineItem.quantity × lineItem.unitPrice)
 taxAmount = subtotal × (taxRate / 100)
 total = subtotal + taxAmount - discount
 ```
+
 This calculation must happen server-side before saving. Never trust the client-sent total.
 
 ### Paystack webhook verification
+
 Always verify the `x-paystack-signature` header using HMAC-SHA512 with `PAYSTACK_WEBHOOK_SECRET` before processing any webhook. Reject unverified requests with 401. This is a security requirement, not optional.
 
 ### PDF generation
+
 - Render an HTML invoice template server-side
 - Puppeteer screenshots it as PDF
 - Upload to S3 with key: `invoices/{userId}/{invoiceId}.pdf`
@@ -354,10 +379,11 @@ Always verify the `x-paystack-signature` header using HMAC-SHA512 with `PAYSTACK
 - Signed URLs expire in 7 days — regenerate on demand if expired
 
 ### AI summary prompt structure
+
 ```
 You are a financial assistant for a small business owner.
-Given the following invoice data for [Month Year], write a 2-3 sentence 
-plain-English summary of their cash flow. Be specific with numbers. 
+Given the following invoice data for [Month Year], write a 2-3 sentence
+plain-English summary of their cash flow. Be specific with numbers.
 Mention the biggest overdue client by name if one exists.
 Be direct and friendly — no jargon.
 
@@ -423,6 +449,7 @@ pnpm dev
 ```
 
 ### Local Redis
+
 ```bash
 docker run -d -p 6379:6379 redis:alpine
 ```
@@ -477,6 +504,7 @@ Never make multiple unrelated changes at once. Change one thing, observe the res
 ### Error categories and first actions
 
 **TypeScript type errors**
+
 - Read the exact line and type mismatch reported
 - Check if the type comes from Prisma generated types — run `prisma generate` if schema changed recently
 - Check if a Zod schema's inferred type doesn't match what the function expects
@@ -484,6 +512,7 @@ Never make multiple unrelated changes at once. Change one thing, observe the res
 - If a type is genuinely unknown, use `unknown` and narrow it properly
 
 **Prisma / database errors**
+
 - `P2002` (unique constraint) — something already exists with that value; check for duplicate invoice numbers, emails, or paystackRef
 - `P2025` (record not found) — the ID doesn't exist or belongs to a different user; check the `where` clause includes `userId`
 - `P2003` (foreign key constraint) — parent record doesn't exist; check creation order
@@ -492,6 +521,7 @@ Never make multiple unrelated changes at once. Change one thing, observe the res
 - After any schema change: always run `prisma generate` then restart the API
 
 **Fastify / API errors**
+
 - `FST_ERR_VALIDATION` — the request body failed Zod schema validation; log `request.body` to see what arrived vs what was expected
 - Route not found (404) — check the plugin is registered in `index.ts` and the prefix matches
 - `reply already sent` — a route handler is calling `reply.send()` more than once; check for missing `return` statements
@@ -499,6 +529,7 @@ Never make multiple unrelated changes at once. Change one thing, observe the res
 - Plugin not decorated — a plugin depends on another plugin that isn't registered first; check registration order in `index.ts`
 
 **Next.js / frontend errors**
+
 - Hydration mismatch — a Server Component is rendering something that differs between server and client (e.g. `Date.now()`, `Math.random()`, or reading `localStorage`); move to a Client Component with `useEffect`
 - `useRouter` / `useSearchParams` outside Client Component — add `'use client'` directive at top of file
 - API fetch returning HTML instead of JSON — the API URL is wrong or the API server isn't running; check `NEXT_PUBLIC_API_URL`
@@ -506,26 +537,31 @@ Never make multiple unrelated changes at once. Change one thing, observe the res
 - Build errors that don't appear in dev — run `pnpm --filter web build` locally before assuming it works
 
 **Authentication / Better Auth errors**
+
 - Session not found — the httpOnly cookie isn't being sent; check `credentials: 'include'` on fetch calls and CORS `credentials: true`
 - Google OAuth redirect mismatch — the redirect URI in Google Cloud Console must exactly match what Better Auth is configured with
 - JWT invalid — `JWT_SECRET` mismatch between where the token was signed and where it's being verified; ensure both API and web use the same secret
 
 **BullMQ / Redis errors**
+
 - `ECONNREFUSED` on Redis — Redis isn't running locally; start it with `docker run -d -p 6379:6379 redis:alpine`
 - Jobs stuck in waiting — the worker process isn't running; start it separately or check it's registered at startup
 - Job failing silently — add a `worker.on('failed', (job, err) => ...)` listener and log the error
 
 **Paystack webhook errors**
+
 - Signature verification failing — log both the computed HMAC and the received header to compare; check `PAYSTACK_WEBHOOK_SECRET` matches the Paystack dashboard
 - Webhook not reaching local dev — use the Paystack CLI or ngrok to tunnel; never skip verification to "test faster"
 - Duplicate payment processed — check the idempotency guard (`Payment.paystackRef` unique check) is in place before any DB write
 
 **S3 / AWS errors**
+
 - `AccessDenied` — IAM credentials don't have the right permissions; check the bucket policy and IAM role
 - `NoSuchBucket` — `S3_BUCKET_NAME` env var is wrong or the bucket doesn't exist in the specified region
 - Signed URL expired — default expiry is 7 days; regenerate on demand if `Invoice.pdfUrl` is older than that
 
 **Environment variable errors**
+
 - Any `undefined` value that should come from env — the Zod env validation in `plugins/env.ts` should have caught this at startup; if it didn't, the var is missing from `.env` or isn't in the Zod schema
 - Works locally but fails on Railway/Vercel — env vars aren't set in the platform dashboard; set them there explicitly, they are never committed to the repo
 

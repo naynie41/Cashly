@@ -1,3 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --font-barlow: 'Barlow', sans-serif;
+    --font-dm-sans: 'DM Sans', sans-serif;
+  }
+
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #eceae3;
+    color: #0a0a09;
+  }
+}
+
+@layer utilities {
+  .font-heading {
+    font-family: var(--font-barlow), sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: -0.03em;
+  }
+}

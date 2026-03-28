@@ -9,6 +9,7 @@ declare module 'fastify' {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugin registration is synchronous; awaits are inside hooks
 const redisPlugin: FastifyPluginAsync = fp(async (server) => {
   const redis = new Redis(env.REDIS_URL, {
     maxRetriesPerRequest: null, // required for BullMQ

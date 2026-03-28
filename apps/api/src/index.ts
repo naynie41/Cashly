@@ -8,6 +8,12 @@ import prismaPlugin from './plugins/prisma.js'
 import redisPlugin from './plugins/redis.js'
 import authPlugin from './plugins/auth.js'
 import meRoute from './routes/me.js'
+import clientsRoute from './routes/clients/index.js'
+import invoicesRoute from './routes/invoices/index.js'
+import paymentsRoute from './routes/payments/index.js'
+import dashboardRoute from './routes/dashboard/index.js'
+import { startEmailWorker } from './workers/emailWorker.js'
+import { startOverdueWorker } from './workers/overdueWorker.js'
 
 const server = Fastify({
   logger: {
@@ -43,11 +49,22 @@ server.get('/', async (_request, reply) => {
 })
 
 await server.register(meRoute)
+await server.register(clientsRoute)
+await server.register(invoicesRoute)
+await server.register(paymentsRoute)
+await server.register(dashboardRoute)
+
+// ── Background workers ────────────────────────────────────────────────────────
+
+const emailWorker = startEmailWorker(server.log)
+const overdueTask = startOverdueWorker(server.log)
 
 // ── Graceful shutdown ─────────────────────────────────────────────────────────
 
 const shutdown = async (signal: string) => {
   server.log.info(`Received ${signal} — shutting down`)
+  void overdueTask.stop()
+  await emailWorker.close()
   await server.close()
   process.exit(0)
 }

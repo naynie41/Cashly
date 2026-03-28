@@ -10,6 +10,7 @@ declare module 'fastify' {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await -- Fastify plugin registration is synchronous; the scoped register call is awaited
 const authPlugin: FastifyPluginAsync = fp(async (server) => {
   // Decorate every request with user = null; requireAuth overwrites this.
   server.decorateRequest('user', null)
@@ -20,19 +21,15 @@ const authPlugin: FastifyPluginAsync = fp(async (server) => {
   // We parse the body as a Buffer (Fastify reads the stream into memory first),
   // then reconstruct a Web API Request to hand off to auth.handler.
   // This avoids the "stream already consumed" problem with toNodeHandler.
+  // eslint-disable-next-line @typescript-eslint/require-await -- inner plugin; awaits are inside the route handler
   await server.register(async (scope) => {
-    scope.addContentTypeParser(
-      'application/json',
-      { parseAs: 'buffer' },
-      (_req, body, done) => done(null, body),
+    scope.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_req, body, done) =>
+      done(null, body),
     )
 
     scope.all('/api/auth/*', async (request, reply) => {
       // Build the full URL Better Auth expects
-      const url = new URL(
-        request.url,
-        `${request.protocol}://${request.hostname}`,
-      )
+      const url = new URL(request.url, `${request.protocol}://${request.hostname}`)
 
       // Convert Node headers → Web Headers
       const headers = new Headers()
@@ -79,6 +76,7 @@ const authPlugin: FastifyPluginAsync = fp(async (server) => {
 // Use as a preHandler on any protected route.
 // Reads the session cookie, validates it against the DB, and sets request.user.
 
+// eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify preHandler accepts async functions; the type declaration is overly strict
 export const requireAuth: preHandlerHookHandler = async (request, reply) => {
   const webHeaders = new Headers()
   for (const [key, value] of Object.entries(request.headers)) {
