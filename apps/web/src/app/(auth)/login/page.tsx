@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signIn } from '@/lib/auth'
 
+// ── Schema ────────────────────────────────────────────────────────────────────
+
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email'),
   password: z.string().min(1, 'Password is required'),
@@ -15,112 +17,7 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 
-export default function LoginPage() {
-  const router = useRouter()
-  const [serverError, setServerError] = useState<string | null>(null)
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) })
-
-  const onSubmit = async (data: LoginForm) => {
-    setServerError(null)
-
-    const { error } = await signIn.email({
-      email: data.email,
-      password: data.password,
-    })
-
-    if (error) {
-      setServerError(error.message ?? 'Invalid email or password')
-      return
-    }
-
-    router.push('/dashboard')
-    router.refresh()
-  }
-
-  const handleGoogleSignIn = async () => {
-    await signIn.social({ provider: 'google', callbackURL: '/dashboard' })
-  }
-
-  return (
-    <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-200">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-        <p className="mt-1 text-sm text-gray-500">Sign in to your Cashly account</p>
-      </div>
-
-      <form onSubmit={(e) => void handleSubmit(onSubmit)(e)} className="space-y-5" noValidate>
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            {...register('email')}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-          />
-          {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            {...register('password')}
-            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-          />
-          {errors.password && (
-            <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
-          )}
-        </div>
-
-        {serverError && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{serverError}</p>
-        )}
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:opacity-60"
-        >
-          {isSubmitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-
-      <div className="my-6 flex items-center gap-3">
-        <div className="h-px flex-1 bg-gray-200" />
-        <span className="text-xs text-gray-400">or</span>
-        <div className="h-px flex-1 bg-gray-200" />
-      </div>
-
-      <button
-        type="button"
-        onClick={() => void handleGoogleSignIn()}
-        className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand/30"
-      >
-        <GoogleIcon />
-        Continue with Google
-      </button>
-
-      <p className="mt-6 text-center text-sm text-gray-500">
-        No account?{' '}
-        <Link href="/signup" className="font-medium text-brand hover:underline">
-          Sign up
-        </Link>
-      </p>
-    </div>
-  )
-}
+// ── Google icon ───────────────────────────────────────────────────────────────
 
 function GoogleIcon() {
   return (
@@ -142,5 +39,191 @@ function GoogleIcon() {
         d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"
       />
     </svg>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function LoginPage() {
+  const router = useRouter()
+  const [serverError, setServerError] = useState<string | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) })
+
+  const onSubmit = async (data: LoginForm) => {
+    setServerError(null)
+    const { error } = await signIn.email({ email: data.email, password: data.password })
+    if (error) {
+      setServerError(error.message ?? 'Invalid email or password')
+      return
+    }
+    router.push('/dashboard')
+    router.refresh()
+  }
+
+  const handleGoogleSignIn = async () => {
+    await signIn.social({ provider: 'google', callbackURL: '/dashboard' })
+  }
+
+  return (
+    <div className="grid min-h-screen grid-cols-2">
+      {/* ── Left — dark branding panel ─────────────────────────────────── */}
+      <div className="flex flex-col justify-between bg-cashly-black p-14">
+        <Link
+          href="/"
+          className="font-barlow text-lg font-black uppercase tracking-tight text-white transition-opacity hover:opacity-70"
+        >
+          ← Cashly
+        </Link>
+
+        <div>
+          <h1
+            className="mb-8 font-barlow font-black uppercase leading-[0.88] tracking-tight text-white"
+            style={{ fontSize: 'clamp(2.6rem, 4vw, 4.2rem)' }}
+          >
+            Your Invoices.
+            <br />
+            <span className="text-cashly-lime">Under Control.</span>
+          </h1>
+          <ul className="space-y-4">
+            {[
+              'Create & send branded PDF invoices',
+              'Accept Paystack payments automatically',
+              'AI cash flow summaries every month',
+              'Automatic overdue reminders',
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-3 font-sans text-sm text-white/50">
+                <span className="h-px w-5 shrink-0 bg-cashly-teal" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="font-sans text-xs text-white/20">© {new Date().getFullYear()} Cashly</p>
+      </div>
+
+      {/* ── Right — form panel ─────────────────────────────────────────── */}
+      <div className="flex flex-col items-center justify-center bg-cashly-cream px-14">
+        <div className="w-full max-w-[400px]">
+          {/* Heading */}
+          <div className="mb-10 animate-fade-up" style={{ animationDelay: '0ms' }}>
+            <h2 className="mb-2 font-barlow text-3xl font-black uppercase tracking-tight text-cashly-black">
+              Welcome Back
+            </h2>
+            <p className="font-sans text-sm text-cashly-gray">Sign in to your account</p>
+          </div>
+
+          {/* Form */}
+          <form
+            onSubmit={(e) => void handleSubmit(onSubmit)(e)}
+            className="animate-fade-up space-y-5"
+            style={{ animationDelay: '60ms' }}
+            noValidate
+          >
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-1.5 block font-sans text-[11px] font-medium uppercase tracking-widest text-cashly-gray"
+              >
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                {...register('email')}
+                className="block w-full border border-black/20 bg-transparent px-4 py-3 font-sans text-sm text-cashly-black outline-none transition placeholder:text-cashly-gray/40 focus:border-cashly-black focus:ring-2 focus:ring-cashly-lime/25"
+              />
+              {errors.email && (
+                <p className="mt-1.5 font-sans text-xs text-red-600">{errors.email.message}</p>
+              )}
+            </div>
+
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className="font-sans text-[11px] font-medium uppercase tracking-widest text-cashly-gray"
+                >
+                  Password
+                </label>
+                <a
+                  href="#"
+                  className="font-sans text-[11px] text-cashly-gray transition-colors hover:text-cashly-black"
+                >
+                  Forgot password?
+                </a>
+              </div>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                {...register('password')}
+                className="block w-full border border-black/20 bg-transparent px-4 py-3 font-sans text-sm text-cashly-black outline-none transition placeholder:text-cashly-gray/40 focus:border-cashly-black focus:ring-2 focus:ring-cashly-lime/25"
+              />
+              {errors.password && (
+                <p className="mt-1.5 font-sans text-xs text-red-600">{errors.password.message}</p>
+              )}
+            </div>
+
+            {serverError && (
+              <div className="border border-red-200 bg-red-50 px-4 py-3 font-sans text-sm text-red-700">
+                {serverError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full border border-cashly-black bg-cashly-black py-3.5 font-sans text-sm font-semibold text-white transition-all hover:bg-transparent hover:text-cashly-black disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div
+            className="animate-fade-up my-7 flex items-center gap-4"
+            style={{ animationDelay: '120ms' }}
+          >
+            <div className="h-px flex-1 bg-black/[0.10]" />
+            <span className="font-sans text-[11px] uppercase tracking-widest text-cashly-gray">
+              or
+            </span>
+            <div className="h-px flex-1 bg-black/[0.10]" />
+          </div>
+
+          {/* Google */}
+          <button
+            type="button"
+            onClick={() => void handleGoogleSignIn()}
+            className="animate-fade-up flex w-full items-center justify-center gap-3 border border-black/20 bg-transparent py-3.5 font-sans text-sm font-medium text-cashly-black transition-colors hover:border-cashly-black hover:bg-cashly-black/[0.04]"
+            style={{ animationDelay: '150ms' }}
+          >
+            <GoogleIcon />
+            Continue with Google
+          </button>
+
+          {/* Sign up link */}
+          <p
+            className="animate-fade-up mt-8 text-center font-sans text-sm text-cashly-gray"
+            style={{ animationDelay: '180ms' }}
+          >
+            No account?{' '}
+            <Link
+              href="/signup"
+              className="font-medium text-cashly-black underline-offset-2 hover:underline"
+            >
+              Sign up free
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
   )
 }

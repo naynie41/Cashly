@@ -3,7 +3,7 @@ import { env } from '../plugins/env.js'
 
 // ── Queue name ────────────────────────────────────────────────────────────────
 
-export const EMAIL_QUEUE = 'cashly:emails'
+export const EMAIL_QUEUE = 'cashly_emails'
 
 // ── Job data types ────────────────────────────────────────────────────────────
 
