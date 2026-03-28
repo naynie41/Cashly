@@ -6,6 +6,8 @@ dist
 build
 .next
 .turbo
+.claude/
+
 
 # Prisma
 apps/api/prisma/migrations/*.sql
