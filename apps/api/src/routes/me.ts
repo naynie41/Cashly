@@ -17,6 +17,14 @@ const meRoute: FastifyPluginAsync = fp(async (server) => {
         businessName: true,
         brandColor: true,
         currency: true,
+        logoUrl: true,
+        industry: true,
+        businessAddress: true,
+        businessPhone: true,
+        businessWebsite: true,
+        defaultTaxRate: true,
+        invoicePrefix: true,
+        onboardingDone: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -26,7 +34,12 @@ const meRoute: FastifyPluginAsync = fp(async (server) => {
       return reply.code(404).send({ error: 'User not found' })
     }
 
-    return reply.send({ data: user })
+    return reply.send({
+      data: {
+        ...user,
+        defaultTaxRate: user.defaultTaxRate !== null ? Number(user.defaultTaxRate) : null,
+      },
+    })
   })
 })
 

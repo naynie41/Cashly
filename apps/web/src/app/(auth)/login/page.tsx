@@ -7,6 +7,7 @@ import { z } from 'zod'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signIn } from '@/lib/auth'
+import { api } from '@/lib/api'
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -61,11 +62,18 @@ export default function LoginPage() {
       setServerError(error.message ?? 'Invalid email or password')
       return
     }
-    router.push('/dashboard')
+    // Check onboarding status and route accordingly
+    try {
+      const me = await api.get<{ data: { onboardingDone: boolean } }>('/api/me')
+      router.push(me.data.onboardingDone ? '/dashboard' : '/onboarding')
+    } catch {
+      router.push('/dashboard')
+    }
     router.refresh()
   }
 
   const handleGoogleSignIn = async () => {
+    // Google OAuth → hits /dashboard → layout redirects to /onboarding if needed
     await signIn.social({ provider: 'google', callbackURL: '/dashboard' })
   }
 

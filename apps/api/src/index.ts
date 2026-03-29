@@ -12,6 +12,8 @@ import clientsRoute from './routes/clients/index.js'
 import invoicesRoute from './routes/invoices/index.js'
 import paymentsRoute from './routes/payments/index.js'
 import dashboardRoute from './routes/dashboard/index.js'
+import onboardingRoute from './routes/onboarding/index.js'
+import logoUploadRoute from './routes/upload/logo.js'
 import { startEmailWorker } from './workers/emailWorker.js'
 import { startOverdueWorker } from './workers/overdueWorker.js'
 
@@ -53,6 +55,8 @@ await server.register(clientsRoute)
 await server.register(invoicesRoute)
 await server.register(paymentsRoute)
 await server.register(dashboardRoute)
+await server.register(onboardingRoute)
+await server.register(logoUploadRoute)
 
 // ── Background workers ────────────────────────────────────────────────────────
 

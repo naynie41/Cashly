@@ -27,6 +27,8 @@ export function startEmailWorker(log: FastifyBaseLogger): Worker<EmailJobData> {
           pdfUrl: data.pdfUrl,
           paymentUrl: data.paymentUrl,
           notes: data.notes,
+          brandColor: data.brandColor,
+          logoUrl: data.logoUrl,
         })
         log.info({ jobId: job.id, invoiceNumber: data.invoiceNumber }, 'Invoice email sent')
         return

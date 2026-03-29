@@ -18,6 +18,8 @@ export interface InvoiceEmailJob {
   pdfUrl: string
   paymentUrl?: string | undefined
   notes?: string | null | undefined
+  brandColor?: string | undefined
+  logoUrl?: string | null | undefined
 }
 
 export interface ReminderEmailJob {

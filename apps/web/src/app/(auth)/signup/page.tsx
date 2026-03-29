@@ -66,11 +66,13 @@ export default function SignupPage() {
       setServerError(error.message ?? 'Could not create account')
       return
     }
-    router.push('/dashboard')
+    // New users always go to onboarding
+    router.push('/onboarding')
     router.refresh()
   }
 
   const handleGoogleSignIn = async () => {
+    // Google OAuth → hits /dashboard → layout redirects to /onboarding if needed
     await signIn.social({ provider: 'google', callbackURL: '/dashboard' })
   }
 

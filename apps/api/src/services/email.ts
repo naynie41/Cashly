@@ -34,6 +34,8 @@ export interface SendInvoiceEmailParams {
   pdfUrl: string
   paymentUrl?: string | undefined
   notes?: string | null | undefined
+  brandColor?: string | undefined
+  logoUrl?: string | null | undefined
 }
 
 // ── Email sender ──────────────────────────────────────────────────────────────
@@ -55,6 +57,8 @@ export async function sendInvoiceEmail(params: SendInvoiceEmailParams): Promise<
       pdfUrl: params.pdfUrl,
       paymentUrl: params.paymentUrl,
       notes: params.notes,
+      brandColor: params.brandColor,
+      logoUrl: params.logoUrl,
     }),
   )
 

@@ -38,12 +38,17 @@ type FormValues = z.infer<typeof formSchema>
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN',
-    minimumFractionDigits: 2,
-  }).format(n)
+function makeFmt(currency: string) {
+  return (n: number) =>
+    new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+    }).format(n)
+}
+
+// Fallback formatter used before user profile loads
+const fmt = makeFmt('NGN')
 
 function today() {
   return new Date().toISOString().split('T')[0]!
@@ -57,17 +62,25 @@ function thirtyDaysFromNow() {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
+interface UserProfile {
+  currency: string
+  defaultTaxRate: number | null
+  invoicePrefix: string
+}
+
 export default function NewInvoicePage() {
   const router = useRouter()
   const [clients, setClients] = useState<ClientOption[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
   const {
     register,
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -82,14 +95,25 @@ export default function NewInvoicePage() {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'lineItems' })
 
-  // ── Load clients ───────────────────────────────────────────────────────────
+  // ── Load clients + user profile ────────────────────────────────────────────
 
   useEffect(() => {
     api
       .get<{ data: ClientOption[] }>('/clients')
       .then((res) => setClients(res.data))
       .catch(() => {})
-  }, [])
+
+    api
+      .get<{ data: UserProfile }>('/api/me')
+      .then(({ data }) => {
+        setUserProfile(data)
+        // Pre-fill tax rate from user defaults
+        if (data.defaultTaxRate !== null) {
+          setValue('taxRate', data.defaultTaxRate)
+        }
+      })
+      .catch(() => {})
+  }, [setValue])
 
   // ── Live total calculation ─────────────────────────────────────────────────
 
@@ -103,6 +127,9 @@ export default function NewInvoicePage() {
   )
   const taxAmount = subtotal * ((Number(watchedTaxRate) || 0) / 100)
   const total = subtotal + taxAmount - (Number(watchedDiscount) || 0)
+
+  // Use user's currency for display (falls back to NGN until profile loads)
+  const fmtCurrency = userProfile ? makeFmt(userProfile.currency) : fmt
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
@@ -135,6 +162,14 @@ export default function NewInvoicePage() {
           <h1 className="font-barlow text-5xl font-black uppercase leading-none tracking-tight text-cashly-black">
             New Invoice
           </h1>
+          {userProfile && (
+            <p className="mt-2 font-sans text-xs text-cashly-gray">
+              Will be numbered{' '}
+              <span className="font-mono font-semibold text-cashly-black">
+                {userProfile.invoicePrefix}-####
+              </span>
+            </p>
+          )}
         </div>
       </div>
 
@@ -353,19 +388,21 @@ export default function NewInvoicePage() {
                 <div className="space-y-2.5">
                   <div className="flex justify-between text-sm">
                     <span className="text-cashly-gray">Subtotal</span>
-                    <span className="font-medium text-cashly-black">{fmt(subtotal)}</span>
+                    <span className="font-medium text-cashly-black">{fmtCurrency(subtotal)}</span>
                   </div>
                   {(Number(watchedTaxRate) || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-cashly-gray">Tax ({watchedTaxRate}%)</span>
-                      <span className="font-medium text-cashly-black">{fmt(taxAmount)}</span>
+                      <span className="font-medium text-cashly-black">
+                        {fmtCurrency(taxAmount)}
+                      </span>
                     </div>
                   )}
                   {(Number(watchedDiscount) || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-cashly-gray">Discount</span>
                       <span className="font-medium text-cashly-black">
-                        −{fmt(Number(watchedDiscount))}
+                        −{fmtCurrency(Number(watchedDiscount))}
                       </span>
                     </div>
                   )}
@@ -375,7 +412,7 @@ export default function NewInvoicePage() {
                         Total Due
                       </span>
                       <span className="font-barlow text-lg font-black text-cashly-black">
-                        {fmt(Math.max(0, total))}
+                        {fmtCurrency(Math.max(0, total))}
                       </span>
                     </div>
                   </div>

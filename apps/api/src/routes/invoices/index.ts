@@ -166,6 +166,9 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
             email: true,
             businessName: true,
             currency: true,
+            brandColor: true,
+            logoUrl: true,
+            invoicePrefix: true,
           },
         },
       },
@@ -309,7 +312,19 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
       include: {
         lineItems: true,
         client: true,
-        user: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+            businessName: true,
+            logoUrl: true,
+            brandColor: true,
+            currency: true,
+            businessAddress: true,
+            businessPhone: true,
+            businessWebsite: true,
+          },
+        },
       },
     })
 
@@ -326,9 +341,12 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
           name: invoice.user.name,
           email: invoice.user.email,
           businessName: invoice.user.businessName ?? null,
-          logoUrl: invoice.user.image ?? null,
-          brandColor: invoice.user.brandColor,
+          logoUrl: invoice.user.logoUrl ?? null,
+          brandColor: invoice.user.brandColor ?? '#6366f1',
           currency: invoice.user.currency,
+          businessAddress: invoice.user.businessAddress ?? null,
+          businessPhone: invoice.user.businessPhone ?? null,
+          businessWebsite: invoice.user.businessWebsite ?? null,
         },
         client: {
           name: invoice.client.name,
@@ -407,6 +425,8 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
         pdfUrl,
         paymentUrl: paymentUrl ?? undefined,
         notes: invoice.notes,
+        brandColor: invoice.user.brandColor ?? undefined,
+        logoUrl: invoice.user.logoUrl ?? undefined,
       })
 
       return reply.send({ data: { pdfUrl, paymentUrl, status: 'SENT' } })

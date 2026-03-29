@@ -21,9 +21,17 @@ model user {
   updatedAt     DateTime
 
   // Cashly business fields — managed via our own API, not by Better Auth
-  businessName String?
-  brandColor   String  @default("#6366f1")
-  currency     String  @default("NGN")
+  businessName     String?
+  brandColor       String   @default("#6366f1")
+  currency         String   @default("NGN")
+  logoUrl          String?
+  industry         String?
+  businessAddress  String?
+  businessPhone    String?
+  businessWebsite  String?
+  defaultTaxRate   Decimal? @db.Decimal(5, 2)
+  invoicePrefix    String   @default("INV")
+  onboardingDone   Boolean  @default(false)
 
   sessions session[]
   accounts account[]

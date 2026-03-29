@@ -16,6 +16,9 @@ interface PdfUser {
   logoUrl: string | null
   brandColor: string
   currency: string
+  businessAddress: string | null
+  businessPhone: string | null
+  businessWebsite: string | null
 }
 
 interface PdfClient {
@@ -262,6 +265,9 @@ function buildInvoiceHtml({ user, client, invoice, lineItems }: InvoicePdfData):
       <div class="addr-lbl">From</div>
       <div class="addr-name">${displayName}</div>
       <div class="addr-line">${esc(user.email)}</div>
+      ${user.businessAddress ? `<div class="addr-line">${esc(user.businessAddress)}</div>` : ''}
+      ${user.businessPhone ? `<div class="addr-line">${esc(user.businessPhone)}</div>` : ''}
+      ${user.businessWebsite ? `<div class="addr-line">${esc(user.businessWebsite)}</div>` : ''}
     </div>
     <div class="addr">
       <div class="addr-lbl">Bill To</div>

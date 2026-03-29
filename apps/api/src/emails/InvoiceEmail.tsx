@@ -23,6 +23,8 @@ export interface InvoiceEmailProps {
   pdfUrl: string
   paymentUrl?: string | undefined
   notes?: string | null | undefined
+  brandColor?: string | undefined
+  logoUrl?: string | null | undefined
 }
 
 export function InvoiceEmail({
@@ -34,6 +36,8 @@ export function InvoiceEmail({
   pdfUrl,
   paymentUrl,
   notes,
+  brandColor = '#0A0A09',
+  logoUrl,
 }: InvoiceEmailProps) {
   return (
     <Html>
@@ -44,7 +48,10 @@ export function InvoiceEmail({
       <Body style={body}>
         <Container style={container}>
           {/* Header */}
-          <Section style={header}>
+          <Section style={{ ...header, backgroundColor: brandColor }}>
+            {logoUrl ? (
+              <img src={logoUrl} alt={businessName} width={48} height={48} style={logoStyle} />
+            ) : null}
             <Heading style={headerHeading}>{businessName}</Heading>
           </Section>
 
@@ -126,6 +133,12 @@ const container: React.CSSProperties = {
 const header: React.CSSProperties = {
   backgroundColor: '#0A0A09',
   padding: '32px 40px',
+}
+
+const logoStyle: React.CSSProperties = {
+  display: 'block',
+  marginBottom: '12px',
+  objectFit: 'contain',
 }
 
 const headerHeading: React.CSSProperties = {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { api } from '@/lib/api'
@@ -43,14 +43,37 @@ interface DashboardSummary {
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
-const fmtFull = (n: number) =>
-  '₦' + n.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-
-const fmtShort = (n: number) => {
-  if (n >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `₦${(n / 1_000).toFixed(0)}k`
-  return `₦${n.toLocaleString('en-NG')}`
+function makeFmtFull(currency: string) {
+  return (n: number) =>
+    new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n)
 }
+
+function makeFmtShort(currency: string) {
+  // Get the currency symbol from Intl
+  const sym = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  })
+    .format(0)
+    .replace(/[\d,.\s]/g, '')
+    .trim()
+
+  return (n: number) => {
+    if (n >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(1)}M`
+    if (n >= 1_000) return `${sym}${(n / 1_000).toFixed(0)}k`
+    return `${sym}${n.toLocaleString('en-NG')}`
+  }
+}
+
+// Fallbacks until user profile loads
+const fmtFull = makeFmtFull('NGN')
+const fmtShort = makeFmtShort('NGN')
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' })
@@ -92,9 +115,10 @@ interface ChartTooltipProps {
   active?: boolean
   payload?: TooltipEntry[]
   label?: string
+  fmt?: (n: number) => string
 }
 
-function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
+function ChartTooltip({ active, payload, label, fmt = fmtFull }: ChartTooltipProps) {
   if (!active || !payload?.length) return null
   return (
     <div className="border border-cashly-gray/40 bg-cashly-black px-3 py-2.5 font-sans text-xs">
@@ -102,7 +126,7 @@ function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
       {payload.map((entry) => (
         <p key={entry.name} className="text-cashly-cream">
           <span className="mr-2 capitalize text-cashly-gray">{entry.name}:</span>
-          {fmtFull(entry.value ?? 0)}
+          {fmt(entry.value ?? 0)}
         </p>
       ))}
     </div>
@@ -125,6 +149,7 @@ interface CardProps {
   valueCls?: string
   delay: number
   extra?: React.ReactNode
+  fmt?: (n: number) => string
 }
 
 function SummaryCard({
@@ -135,6 +160,7 @@ function SummaryCard({
   valueCls = 'text-cashly-cream',
   delay,
   extra,
+  fmt = fmtShort,
 }: CardProps) {
   return (
     <div
@@ -151,7 +177,7 @@ function SummaryCard({
         <p
           className={`mt-3 font-barlow text-3xl font-black uppercase tracking-tight lg:text-4xl ${valueCls}`}
         >
-          {fmtShort(value)}
+          {fmt(value)}
         </p>
         <p className="mt-1.5 font-sans text-xs text-cashly-gray">{sub}</p>
       </div>
@@ -266,11 +292,23 @@ function AiSummaryCard({ aiData, aiLoading, aiError, onRefresh, refreshing }: Ai
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [currency, setCurrency] = useState('NGN')
 
   const [aiData, setAiData] = useState<AiSummary | null>(null)
   const [aiLoading, setAiLoading] = useState(true)
   const [aiError, setAiError] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Load user profile for currency
+  useEffect(() => {
+    api
+      .get<{ data: { currency: string } }>('/api/me')
+      .then(({ data: me }) => setCurrency(me.currency))
+      .catch(() => {})
+  }, [])
+
+  const fmt = useMemo(() => makeFmtFull(currency), [currency])
+  const fmtS = useMemo(() => makeFmtShort(currency), [currency])
 
   useEffect(() => {
     api
@@ -334,6 +372,7 @@ export default function DashboardPage() {
               accentCls="border-t-2 border-cashly-teal"
               valueCls="text-cashly-cream"
               delay={0}
+              fmt={fmtS}
             />
             <SummaryCard
               label="Total Received"
@@ -342,6 +381,7 @@ export default function DashboardPage() {
               accentCls="border-t-2 border-cashly-lime"
               valueCls="text-cashly-lime"
               delay={75}
+              fmt={fmtS}
               extra={
                 collectionRate >= 0.8 ? (
                   <span className="font-sans text-xs text-cashly-lime" title="≥80% collection rate">
@@ -357,6 +397,7 @@ export default function DashboardPage() {
               accentCls="border-t-2 border-cashly-cream/40"
               valueCls="text-cashly-cream"
               delay={150}
+              fmt={fmtS}
             />
             <SummaryCard
               label="Overdue"
@@ -365,6 +406,7 @@ export default function DashboardPage() {
               accentCls={`border-t-2 border-cashly-lime/60 ${(data?.overdueCount ?? 0) > 0 ? 'ring-1 ring-inset ring-cashly-lime/20' : ''}`}
               valueCls="text-cashly-lime"
               delay={225}
+              fmt={fmtS}
               extra={
                 (data?.overdueCount ?? 0) > 0 ? (
                   <span className="h-2 w-2 animate-pulse rounded-full bg-cashly-lime" />
@@ -428,14 +470,14 @@ export default function DashboardPage() {
                   tickLine={false}
                 />
                 <YAxis
-                  tickFormatter={(v: number) => fmtShort(v)}
+                  tickFormatter={(v: number) => fmtS(v)}
                   tick={{ fill: '#888880', fontSize: 11, fontFamily: 'DM Sans' }}
                   axisLine={false}
                   tickLine={false}
                   width={60}
                 />
                 <Tooltip
-                  content={<ChartTooltip />}
+                  content={<ChartTooltip fmt={fmt} />}
                   cursor={{ fill: '#ECEAE3', fillOpacity: 0.04 }}
                 />
                 <Bar dataKey="invoiced" fill="#72EDD4" radius={[2, 2, 0, 0]} />
@@ -495,7 +537,7 @@ export default function DashboardPage() {
                         {row.clientName}
                       </td>
                       <td className="px-6 py-4 font-barlow text-base font-black tracking-tight text-cashly-lime">
-                        {fmtFull(row.totalOwed)}
+                        {fmt(row.totalOwed)}
                       </td>
                       <td className="px-6 py-4 font-sans text-sm text-cashly-gray">
                         {row.invoiceCount} inv.
@@ -577,7 +619,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="ml-4 flex shrink-0 flex-col items-end gap-1.5">
                       <span className="font-barlow text-sm font-black tracking-tight text-cashly-cream">
-                        {fmtShort(inv.total)}
+                        {fmtS(inv.total)}
                       </span>
                       <StatusBadge status={inv.status} />
                     </div>
