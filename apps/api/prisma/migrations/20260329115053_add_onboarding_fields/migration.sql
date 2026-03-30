@@ -5,5 +5,5 @@ ADD COLUMN     "businessWebsite" TEXT,
 ADD COLUMN     "defaultTaxRate" DECIMAL(5,2),
 ADD COLUMN     "industry" TEXT,
 ADD COLUMN     "invoicePrefix" TEXT NOT NULL DEFAULT 'INV',
-ADD COLUMN     "logoUrl" TEXT,
+ADD COLUMN     "logoUrl" TEXT, AND
 ADD COLUMN     "onboardingDone" BOOLEAN NOT NULL DEFAULT false;
