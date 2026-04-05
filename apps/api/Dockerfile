@@ -42,17 +42,10 @@ COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
 
 COPY --from=builder /app/apps/api/package.json ./package.json
 
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
+
  && echo "Chromium installed for Puppeteer"
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 
 USER fastify
 
