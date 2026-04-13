@@ -1,0 +1,59 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules
+**/node_modules
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+**/dist
+**/.next
+**/build
+**/.turbo
+
+# ─── Environment files (NEVER bake secrets into images) ──────────────────────
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# ─── Prisma — keep schema, exclude generated client (regenerated in builder) ─
+apps/api/node_modules/.prisma
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+**/logs
+
+# ─── Test and coverage ───────────────────────────────────────────────────────
+coverage
+**/.nyc_output
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+
+# ─── Git ─────────────────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ─── Editor and OS ───────────────────────────────────────────────────────────
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── CI / DevOps (not needed inside the image) ───────────────────────────────
+.github
+docker
+*.Dockerfile
+docker-compose*.yml
+
+# ─── Docs ────────────────────────────────────────────────────────────────────
+*.md
+!apps/api/README.md
+docs
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+.eslintcache
+*.tsbuildinfo
