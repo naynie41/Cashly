@@ -1,14 +1,14 @@
-# ─── Dependencies ─────────
+# ─── Dependencies
 node_modules
 **/node_modules
 
-# ─── Build outputs ──────
+# ─── Build outputs 
 **/dist
 **/.next
 **/build
 **/.turbo
 
-# ─── Environment files (NEVER bake secrets into images) ──────────
+# ─── Environment files (NEVER bake secrets into images)
 .env
 .env.*
 !.env.example
@@ -16,26 +16,26 @@ node_modules
 **/.env.*
 !**/.env.example
 
-# ─── Prisma — keep schema, exclude generated client (regenerated in builder) ─
+# ─── Prisma — keep schema, exclude generated client (regenerated in builder)
 apps/api/node_modules/.prisma
 
-# ─── Logs ──
+# ─── Loggs
 *.log
 **/logs
 
-# ─── Test and coverage ───
+# ─── Test and coverage
 coverage
 **/.nyc_output
 **/__tests__
 **/*.test.ts
 **/*.spec.ts
 
-# ─── Git ──
+# ─── Git
 .git
 .gitignore
 .gitattributes
 
-# ─── Editor and OS ──
+# ─── Editor and OS
 .vscode
 .idea
 *.swp
@@ -43,17 +43,17 @@ coverage
 .DS_Store
 Thumbs.db
 
-# ─── CI / DevOps (not needed inside the image) ───
+# ─── CI / DevOps (not needed inside the image) 
 .github
 docker
 *.Dockerfile
 docker-compose*.yml
 
-# ─── Docs ─────
+# ─── Docs 
 *.md
 !apps/api/README.md
 docs
 
-# ─── Misc ────
+# ─── Misc 
 .eslintcache
 *.tsbuildinfo
