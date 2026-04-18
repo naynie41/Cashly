@@ -1,4 +1,4 @@
-# ─── Stage 1: Dependencies ───────────────────────────────────────────────────
+# ─── Stage 1: Dependencies ──────
 FROM node:20-alpine AS deps
 
 RUN npm install -g pnpm
@@ -13,7 +13,7 @@ COPY packages/types/package.json ./packages/types/
 RUN pnpm install --frozen-lockfile
 
 
-# ─── Stage 2: Builder ────────────────────────────────────────────────────────
+# ─── Stage 2: Builder ────
 FROM node:20-alpine AS builder
 
 RUN npm install -g pnpm
@@ -35,7 +35,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter web build
 
 
-# ─── Stage 3: Runner ─────────────────────────────────────────────────────────
+# ─── Stage 3: Runner ───
 FROM node:20-alpine AS runner
 
 # Security: run as non-root
