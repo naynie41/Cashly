@@ -8,6 +8,10 @@ import { env } from '../plugins/env.js'
 
 let _resend: Resend | null = null
 
+export function emailConfigured(): boolean {
+  return Boolean(env.RESEND_API_KEY && env.EMAIL_FROM)
+}
+
 function getResend(): Resend {
   if (_resend) return _resend
 

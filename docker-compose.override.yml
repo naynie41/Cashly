@@ -1,0 +1,32 @@
+# Auto-loaded by `docker compose up` in this directory. Selects the `dev` stage
+# of each Dockerfile and bind-mounts source so edits hot-reload inside the
+# container. To run the production build instead:
+#   docker compose -f docker-compose.yml up --build
+
+services:
+  api:
+    image: cashly-api-dev
+    build:
+      target: dev
+    volumes:
+      # Bind-mount the entire app dir so edits are visible immediately.
+      - ./apps/api:/app/apps/api
+      - ./packages/types:/app/packages/types
+      # Anonymous volumes mask the bind mount so the host's node_modules /
+      # generated artifacts never shadow what was installed inside the image.
+      - /app/apps/api/node_modules
+      - /app/apps/api/dist
+      - /app/packages/types/node_modules
+    healthcheck:
+      disable: true
+
+  web:
+    image: cashly-web-dev
+    build:
+      target: dev
+    volumes:
+      - ./apps/web:/app/apps/web
+      - ./packages/types:/app/packages/types
+      - /app/apps/web/node_modules
+      - /app/apps/web/.next
+      - /app/packages/types/node_modules

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { getApiUrl } from '@/lib/api'
 import SidebarNav from './_components/SidebarNav'
 
 // ── Server-side user fetch ────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ async function getOnboardingStatus(): Promise<boolean | null> {
     .map((c) => `${c.name}=${c.value}`)
     .join('; ')
 
-  const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+  const apiUrl = getApiUrl()
 
   try {
     const res = await fetch(`${apiUrl}/api/me`, {

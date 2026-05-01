@@ -37,9 +37,10 @@ const clientsRoute: FastifyPluginAsync = fp(async (server) => {
         address: parsed.data.address ?? null,
         userId: request.user!.id,
       },
+      include: { _count: { select: { invoices: true } } },
     })
 
-    return reply.code(201).send({ data: client })
+    return reply.code(201).send({ data: { ...client, totalBilled: 0 } })
   })
 
   // ── GET /clients ──────────────────────────────────────────────────────────
@@ -113,9 +114,19 @@ const clientsRoute: FastifyPluginAsync = fp(async (server) => {
         ...(phone !== undefined && { phone: phone ?? null }),
         ...(address !== undefined && { address: address ?? null }),
       },
+      include: {
+        _count: { select: { invoices: true } },
+        invoices: { select: { total: true } },
+      },
     })
 
-    return reply.send({ data: updated })
+    const { invoices, ...rest } = updated
+    return reply.send({
+      data: {
+        ...rest,
+        totalBilled: invoices.reduce((sum, inv) => sum + Number(inv.total), 0),
+      },
+    })
   })
 
   // ── DELETE /clients/:id ───────────────────────────────────────────────────

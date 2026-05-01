@@ -14,15 +14,22 @@ const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function s3Configured(): boolean {
+  return Boolean(
+    env.AWS_ACCESS_KEY_ID &&
+      env.AWS_SECRET_ACCESS_KEY &&
+      env.AWS_REGION &&
+      env.S3_BUCKET_NAME,
+  )
+}
+
 function getS3(): S3Client {
-  if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY || !env.AWS_REGION) {
-    throw new Error('S3 credentials not configured')
-  }
+  if (!s3Configured()) throw new Error('S3 credentials not configured')
   return new S3Client({
     region: env.AWS_REGION,
     credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+      accessKeyId: env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
     },
   })
 }
@@ -97,25 +104,30 @@ const logoUploadRoute: FastifyPluginAsync = fp(async (server) => {
       return badRequest(reply, 'Could not process image — ensure the file is a valid image')
     }
 
-    // Upload to S3
-    try {
-      const s3 = getS3()
-      const bucket = getBucket()
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: logoKey(userId),
-          Body: processed,
-          ContentType: 'image/png',
-          ServerSideEncryption: 'AES256',
-        }),
-      )
-    } catch (err) {
-      request.log.error(err, 'S3 logo upload failed')
-      return internalError(reply, 'Failed to upload logo')
+    // S3 is the production target; if it's not configured (e.g. local dev),
+    // fall back to a base64 data URL stored directly on the user row.
+    let logoUrl: string
+    if (s3Configured()) {
+      try {
+        const s3 = getS3()
+        const bucket = getBucket()
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: logoKey(userId),
+            Body: processed,
+            ContentType: 'image/png',
+            ServerSideEncryption: 'AES256',
+          }),
+        )
+      } catch (err) {
+        request.log.error(err, 'S3 logo upload failed')
+        return internalError(reply, 'Failed to upload logo')
+      }
+      logoUrl = logoPublicUrl(userId)
+    } else {
+      logoUrl = `data:image/png;base64,${processed.toString('base64')}`
     }
-
-    const logoUrl = logoPublicUrl(userId)
 
     // Save to DB
     await server.prisma.user.update({
@@ -130,13 +142,15 @@ const logoUploadRoute: FastifyPluginAsync = fp(async (server) => {
   server.delete('/upload/logo', { preHandler: requireAuth }, async (request, reply) => {
     const userId = request.user!.id
 
-    try {
-      const s3 = getS3()
-      const bucket = getBucket()
-      await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: logoKey(userId) }))
-    } catch (err) {
-      // Log but don't fail — DB update should still succeed
-      request.log.warn(err, 'S3 logo delete failed (proceeding with DB clear)')
+    if (s3Configured()) {
+      try {
+        const s3 = getS3()
+        const bucket = getBucket()
+        await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: logoKey(userId) }))
+      } catch (err) {
+        // Log but don't fail — DB update should still succeed
+        request.log.warn(err, 'S3 logo delete failed (proceeding with DB clear)')
+      }
     }
 
     await server.prisma.user.update({

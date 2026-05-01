@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { signOut } from '@/lib/auth'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
@@ -12,6 +14,20 @@ const navItems = [
 
 export default function SidebarNav() {
   const pathname = usePathname()
+  const router = useRouter()
+  const [signingOut, setSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    try {
+      await signOut()
+      router.replace('/login')
+      router.refresh()
+    } catch {
+      setSigningOut(false)
+    }
+  }
 
   return (
     <aside className="fixed inset-y-0 left-0 w-[220px] bg-cashly-black flex flex-col z-50">
@@ -47,8 +63,17 @@ export default function SidebarNav() {
       </nav>
 
       {/* Bottom */}
-      <div className="px-6 py-5 border-t border-white/[0.08]">
-        <p className="text-[10px] text-white/20 font-barlow uppercase tracking-widest">
+      <div className="border-t border-white/[0.08] px-3 py-3">
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-white/40 transition-all duration-150 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <SignOutIcon />
+          <span className="font-sans">{signingOut ? 'Signing out…' : 'Sign Out'}</span>
+        </button>
+        <p className="mt-3 px-3 font-barlow text-[10px] uppercase tracking-widest text-white/20">
           Portfolio Project
         </p>
       </div>
@@ -114,6 +139,27 @@ function InvoicesIcon() {
         strokeWidth="1.3"
         strokeLinecap="round"
       />
+    </svg>
+  )
+}
+
+function SignOutIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path
+        d="M6 1.5H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9.5 4.5L13 7.5L9.5 10.5"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M13 7.5H6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   )
 }

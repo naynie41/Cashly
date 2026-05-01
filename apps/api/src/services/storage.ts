@@ -6,10 +6,18 @@ import { env } from '../plugins/env.js'
 
 let _s3: S3Client | null = null
 
+export function s3Configured(): boolean {
+  return Boolean(
+    env.AWS_ACCESS_KEY_ID &&
+      env.AWS_SECRET_ACCESS_KEY &&
+      env.AWS_REGION &&
+      env.S3_BUCKET_NAME,
+  )
+}
+
 function getS3Client(): S3Client {
   if (_s3) return _s3
-
-  if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY || !env.AWS_REGION) {
+  if (!s3Configured()) {
     throw new Error(
       'S3 credentials not configured. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION.',
     )
@@ -18,8 +26,8 @@ function getS3Client(): S3Client {
   _s3 = new S3Client({
     region: env.AWS_REGION,
     credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+      accessKeyId: env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
     },
   })
 
@@ -44,6 +52,12 @@ export async function uploadInvoicePdf(
   invoiceId: string,
   buffer: Buffer,
 ): Promise<string> {
+  // Dev fallback: when S3 isn't configured, return a data URL so the PDF is
+  // still viewable from the dashboard. Production will always have S3.
+  if (!s3Configured()) {
+    return `data:application/pdf;base64,${buffer.toString('base64')}`
+  }
+
   const s3 = getS3Client()
   const bucket = getBucket()
   const key = `invoices/${userId}/${invoiceId}.pdf`
