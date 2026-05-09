@@ -1,4 +1,13 @@
-const API_URL = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+// Server-side calls (Server Components, route handlers) use the internal
+// container hostname; browser calls use the public URL.
+export const getApiUrl = (): string =>
+  typeof window === 'undefined'
+    ? (process.env['INTERNAL_API_URL'] ??
+       process.env['NEXT_PUBLIC_API_URL'] ??
+       'http://localhost:3001')
+    : (process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001')
+
+const API_URL = getApiUrl()
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown
@@ -7,13 +16,15 @@ type RequestOptions = Omit<RequestInit, 'body'> & {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options
 
+  // Only attach the JSON content-type when we actually have a body — Fastify
+  // rejects empty JSON requests (FST_ERR_CTP_EMPTY_JSON_BODY).
+  const baseHeaders: Record<string, string> =
+    body !== undefined ? { 'Content-Type': 'application/json' } : {}
+
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
+    headers: { ...baseHeaders, ...headers },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
 

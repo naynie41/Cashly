@@ -1,7 +1,6 @@
 import { Worker } from 'bullmq'
 import { EMAIL_QUEUE, makeRedisConnection, type EmailJobData } from '../lib/queue.js'
-import { sendInvoiceEmail } from '../services/email.js'
-import { sendReminderEmail } from '../services/email.js'
+import { sendInvoiceEmail, sendReminderEmail, emailConfigured } from '../services/email.js'
 import type { FastifyBaseLogger } from 'fastify'
 
 // ── Worker ────────────────────────────────────────────────────────────────────
@@ -15,6 +14,16 @@ export function startEmailWorker(log: FastifyBaseLogger): Worker<EmailJobData> {
     EMAIL_QUEUE,
     async (job) => {
       const { data } = job
+
+      // Dev fallback: if Resend isn't configured, log the job and treat it as
+      // succeeded so the queue doesn't accumulate failed jobs locally.
+      if (!emailConfigured()) {
+        log.warn(
+          { jobId: job.id, type: data.type },
+          'Email skipped — RESEND_API_KEY/EMAIL_FROM not configured (dev mode)',
+        )
+        return
+      }
 
       if (data.type === 'invoice_send') {
         await sendInvoiceEmail({

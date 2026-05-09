@@ -72,8 +72,25 @@ export default function SignupPage() {
   }
 
   const handleGoogleSignIn = async () => {
-    // Google OAuth → hits /dashboard → layout redirects to /onboarding if needed
-    await signIn.social({ provider: 'google', callbackURL: '/dashboard' })
+    setServerError(null)
+    const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001'
+    const appUrl = process.env['NEXT_PUBLIC_APP_URL'] ?? 'http://localhost:3000'
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/sign-in/social`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'google', callbackURL: `${appUrl}/dashboard` }),
+      })
+      const json = (await res.json()) as { url?: string; message?: string }
+      if (!res.ok || !json.url) {
+        setServerError(json.message ?? 'Google sign-in failed')
+        return
+      }
+      window.location.href = json.url
+    } catch {
+      setServerError('Could not reach the server')
+    }
   }
 
   return (

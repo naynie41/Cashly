@@ -1,4 +1,3 @@
-import fp from 'fastify-plugin'
 import type { FastifyPluginAsync } from 'fastify'
 import { verifyPaystackSignature, type PaystackWebhookPayload } from '../../services/paystack.js'
 import { prisma } from '../../lib/prisma.js'
@@ -6,11 +5,12 @@ import { Decimal } from '@prisma/client/runtime/library'
 
 // ── Route plugin ──────────────────────────────────────────────────────────────
 
-// NOTE: Fastify plugin registration is synchronous; awaits are inside route handlers.
+// NOT wrapped in fastify-plugin — the JSON-as-Buffer content-type parser below
+// must stay encapsulated to this plugin so other routes still get parsed JSON.
 // eslint-disable-next-line @typescript-eslint/require-await
-const paymentsRoute: FastifyPluginAsync = fp(async (server) => {
+const paymentsRoute: FastifyPluginAsync = async (server) => {
   // Parse the body as a raw Buffer so we can compute the HMAC over the exact
-  // bytes Paystack signed. Scoped to this plugin — does not affect other routes.
+  // bytes Paystack signed.
   server.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_req, body, done) =>
     done(null, body),
   )
@@ -99,6 +99,6 @@ const paymentsRoute: FastifyPluginAsync = fp(async (server) => {
     // 7. Always return 200 — never make Paystack wait or retry unnecessarily
     return reply.code(200).send({ received: true })
   })
-})
+}
 
 export default paymentsRoute
