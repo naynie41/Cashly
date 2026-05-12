@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { verifyPaystackSignature, type PaystackWebhookPayload } from '../../services/paystack.js'
 import { prisma } from '../../lib/prisma.js'
+import { emailQueue } from '../../lib/queue.js'
 import { Decimal } from '@prisma/client/runtime/library'
 
 // ── Route plugin ──────────────────────────────────────────────────────────────
@@ -51,7 +52,8 @@ const paymentsRoute: FastifyPluginAsync = async (server) => {
       return reply.code(200).send({ received: true })
     }
 
-    const { reference, amount, currency, paid_at, metadata } = payload.data
+    const { reference, amount, currency, paid_at, channel, metadata } = payload.data
+    const paymentMethod = typeof channel === 'string' && channel.length > 0 ? channel : 'unknown'
 
     // 4. Idempotency check — if Payment already exists for this reference, do nothing
     const existing = await prisma.payment.findUnique({ where: { paystackRef: reference } })
@@ -96,7 +98,32 @@ const paymentsRoute: FastifyPluginAsync = async (server) => {
 
     request.log.info({ invoiceId: invoice.id, reference }, 'Invoice marked as PAID via Paystack')
 
-    // 7. Always return 200 — never make Paystack wait or retry unnecessarily
+    // 7. Enqueue the receipt job. PDF render + S3 upload + email send all
+    //    happen on the worker — the webhook stays fast. The compound unique
+    //    index (invoiceId, paymentReference) makes a duplicate webhook (a
+    //    Paystack retry) harmless: the worker will find the existing receipt
+    //    and skip the work.
+    try {
+      await emailQueue.add('generate_and_send_receipt', {
+        type: 'generate_and_send_receipt',
+        invoiceId: invoice.id,
+        paymentReference: reference,
+        paymentMethod,
+      })
+      request.log.info(
+        { invoiceId: invoice.id, reference, paymentMethod },
+        'Receipt job enqueued',
+      )
+    } catch (err) {
+      // The Payment + status flip already committed — never let a queue hiccup
+      // make Paystack think the webhook failed and retry forever.
+      request.log.error(
+        { err, invoiceId: invoice.id, reference },
+        'Failed to enqueue receipt job — payment is recorded, receipt will need manual resend',
+      )
+    }
+
+    // 8. Always return 200 — never make Paystack wait or retry unnecessarily
     return reply.code(200).send({ received: true })
   })
 }

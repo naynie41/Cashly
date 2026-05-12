@@ -1,6 +1,8 @@
 import { Worker } from 'bullmq'
 import { EMAIL_QUEUE, makeRedisConnection, type EmailJobData } from '../lib/queue.js'
 import { sendInvoiceEmail, sendReminderEmail, emailConfigured } from '../services/email.js'
+import { processReceiptJob } from '../services/receipts.js'
+import { prisma } from '../lib/prisma.js'
 import type { FastifyBaseLogger } from 'fastify'
 
 // ── Worker ────────────────────────────────────────────────────────────────────
@@ -15,9 +17,11 @@ export function startEmailWorker(log: FastifyBaseLogger): Worker<EmailJobData> {
     async (job) => {
       const { data } = job
 
-      // Dev fallback: if Resend isn't configured, log the job and treat it as
-      // succeeded so the queue doesn't accumulate failed jobs locally.
-      if (!emailConfigured()) {
+      // The receipt job has its own dev fallback inside processReceiptJob, so
+      // skip the early exit for that type and let the orchestrator decide
+      // (it still needs to render the PDF + persist the row even when email
+      // is skipped — useful in dev so the receipts list shows up).
+      if (!emailConfigured() && data.type !== 'generate_and_send_receipt') {
         log.warn(
           { jobId: job.id, type: data.type },
           'Email skipped — RESEND_API_KEY/EMAIL_FROM not configured (dev mode)',
@@ -38,8 +42,33 @@ export function startEmailWorker(log: FastifyBaseLogger): Worker<EmailJobData> {
           notes: data.notes,
           brandColor: data.brandColor,
           logoUrl: data.logoUrl,
+          isRevision: data.isRevision ?? false,
         })
-        log.info({ jobId: job.id, invoiceNumber: data.invoiceNumber }, 'Invoice email sent')
+        log.info(
+          { jobId: job.id, invoiceNumber: data.invoiceNumber, revision: data.isRevision ?? false },
+          'Invoice email sent',
+        )
+        return
+      }
+
+      if (data.type === 'generate_and_send_receipt') {
+        const result = await processReceiptJob(prisma, log, {
+          invoiceId: data.invoiceId,
+          paymentReference: data.paymentReference,
+          paymentMethod: data.paymentMethod,
+          forceResend: data.forceResend ?? false,
+        })
+        log.info(
+          {
+            jobId: job.id,
+            attempt: job.attemptsMade + 1,
+            receiptId: result.receiptId,
+            receiptNumber: result.receiptNumber,
+            emailed: result.emailed,
+            skipped: result.skipped,
+          },
+          'Receipt job completed',
+        )
         return
       }
 

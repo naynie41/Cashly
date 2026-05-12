@@ -6,7 +6,7 @@ import { requireAuth } from '../../plugins/auth.js'
 import { notFound, forbidden, badRequest, internalError } from '../../lib/errors.js'
 import { generateInvoiceNumber } from '../../lib/invoiceNumber.js'
 import { generateInvoicePdf } from '../../services/pdf.js'
-import { uploadInvoicePdf } from '../../services/storage.js'
+import { uploadInvoicePdf, getReceiptPdfUrl } from '../../services/storage.js'
 import { initializePaystackTransaction } from '../../services/paystack.js'
 import { emailQueue } from '../../lib/queue.js'
 
@@ -160,6 +160,9 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
         lineItems: true,
         client: true,
         payment: true,
+        receipts: {
+          orderBy: { paidAt: 'desc' },
+        },
         user: {
           select: {
             name: true,
@@ -177,6 +180,26 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
     if (!invoice) return notFound(reply, 'Invoice not found')
     if (invoice.userId !== request.user!.id) return forbidden(reply)
 
+    // Resolve signed PDF URLs alongside the row data (CloudFront when configured,
+    // otherwise null so the UI knows to re-render via the resend endpoint).
+    const receiptsWithUrls = await Promise.all(
+      invoice.receipts.map(async (r) => {
+        const pdfUrl = r.pdfS3Key ? await getReceiptPdfUrl(r.pdfS3Key) : null
+        return {
+          id: r.id,
+          receiptNumber: r.receiptNumber,
+          paymentReference: r.paymentReference,
+          amountPaid: Number(r.amountPaid),
+          currency: r.currency,
+          paidAt: r.paidAt,
+          paymentMethod: r.paymentMethod,
+          pdfUrl,
+          emailSentAt: r.emailSentAt,
+          createdAt: r.createdAt,
+        }
+      }),
+    )
+
     return reply.send({
       data: {
         ...invoice,
@@ -192,6 +215,7 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
         payment: invoice.payment
           ? { ...invoice.payment, amountPaid: Number(invoice.payment.amountPaid) }
           : null,
+        receipts: receiptsWithUrls,
       },
     })
   })
@@ -207,9 +231,15 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
 
     if (!existing) return notFound(reply, 'Invoice not found')
     if (existing.userId !== request.user!.id) return forbidden(reply)
-    if (existing.status !== 'DRAFT') {
-      return badRequest(reply, 'Only DRAFT invoices can be edited')
+    if (existing.status === 'PAID') {
+      return badRequest(reply, 'Paid invoices cannot be edited')
     }
+
+    // Editing a SENT/OVERDUE invoice marks it as revised so the detail page can
+    // surface a banner and the next resend uses a "revised" subject. We also
+    // clear the cached PDF + payment link because the totals may have changed —
+    // the resend will regenerate both.
+    const isResendNeeded = existing.status === 'SENT' || existing.status === 'OVERDUE'
 
     const parsed = updateSchema.safeParse(request.body)
     if (!parsed.success) {
@@ -254,6 +284,13 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
           discount: new Decimal(newDiscount),
           total: new Decimal(total),
           ...(notes !== undefined && { notes: notes ?? null }),
+          // Revision-tracking on SENT/OVERDUE edits: stamp revisedAt + drop the
+          // stale PDF and payment link so the next resend regenerates them.
+          ...(isResendNeeded && {
+            revisedAt: new Date(),
+            pdfUrl: null,
+            paymentUrl: null,
+          }),
           ...(lineItems && {
             lineItems: {
               create: lineItems.map((item) => ({
@@ -335,7 +372,23 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
     }
 
     try {
-      // 1. Generate PDF
+      // 1. Generate Paystack payment link first so it can be embedded in the PDF.
+      //    Best-effort — don't fail the send if Paystack is down.
+      let paymentUrl: string | null = invoice.paymentUrl
+      if (!paymentUrl) {
+        try {
+          paymentUrl = await initializePaystackTransaction({
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            clientEmail: invoice.client.email,
+            amountNgn: Number(invoice.total),
+          })
+        } catch (err) {
+          request.log.warn(err, 'Paystack payment link generation failed — proceeding without it')
+        }
+      }
+
+      // 2. Generate PDF (now includes status + paymentUrl)
       const pdfBuffer = await generateInvoicePdf({
         user: {
           name: invoice.user.name,
@@ -356,6 +409,7 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
         },
         invoice: {
           invoiceNumber: invoice.invoiceNumber,
+          status: 'SENT', // we're transitioning to SENT in step 4 below
           issueDate: invoice.issueDate,
           dueDate: invoice.dueDate,
           subtotal: Number(invoice.subtotal),
@@ -363,6 +417,7 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
           discount: Number(invoice.discount),
           total: Number(invoice.total),
           notes: invoice.notes ?? null,
+          paymentUrl,
         },
         lineItems: invoice.lineItems.map((li) => ({
           description: li.description,
@@ -372,32 +427,19 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
         })),
       })
 
-      // 2. Upload to S3
+      // 3. Upload to S3 (or data-URL fallback in dev)
       const pdfUrl = await uploadInvoicePdf(invoice.userId, invoice.id, pdfBuffer)
 
-      // 3. Generate Paystack payment link (best-effort — don't fail the send if Paystack is down)
-      // NOTE: We already returned early if status === 'PAID', so no need to check again here.
-      let paymentUrl: string | null = invoice.paymentUrl
-      if (!paymentUrl) {
-        try {
-          paymentUrl = await initializePaystackTransaction({
-            invoiceId: invoice.id,
-            invoiceNumber: invoice.invoiceNumber,
-            clientEmail: invoice.client.email,
-            amountNgn: Number(invoice.total),
-          })
-        } catch (err) {
-          request.log.warn(err, 'Paystack payment link generation failed — proceeding without it')
-        }
-      }
-
-      // 4. Update invoice: status SENT, pdfUrl, paymentUrl
+      // 4. Update invoice: status SENT, pdfUrl, paymentUrl, clear revision flag.
+      // We capture isRevision BEFORE clearing it so the email below knows.
+      const isRevision = invoice.revisedAt !== null
       await server.prisma.invoice.update({
         where: { id },
         data: {
           status: 'SENT',
           pdfUrl,
           paymentUrl,
+          revisedAt: null,
         },
       })
 
@@ -427,6 +469,7 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
         notes: invoice.notes,
         brandColor: invoice.user.brandColor ?? undefined,
         logoUrl: invoice.user.logoUrl ?? undefined,
+        isRevision,
       })
 
       return reply.send({ data: { pdfUrl, paymentUrl, status: 'SENT' } })
@@ -435,6 +478,55 @@ const invoicesRoute: FastifyPluginAsync = fp(async (server) => {
       return internalError(reply, 'Failed to send invoice. Please try again.')
     }
   })
+
+  // ── POST /api/invoices/:id/receipts/:receiptId/resend ────────────────────
+  //
+  // Re-enqueues a generate-and-send-receipt job for an existing receipt so the
+  // owner can resend (e.g. client lost the email). Owner-only — the auth check
+  // verifies both the invoice and the receipt belong to the requesting user.
+  // The job's forceResend flag bypasses the "already emailed" idempotency skip
+  // inside processReceiptJob; the (invoiceId, paymentReference) unique index
+  // still guarantees no duplicate Receipt row is created.
+  server.post(
+    '/api/invoices/:id/receipts/:receiptId/resend',
+    { preHandler: requireAuth },
+    async (request, reply) => {
+      const { id, receiptId } = request.params as { id: string; receiptId: string }
+
+      const receipt = await server.prisma.receipt.findUnique({
+        where: { id: receiptId },
+        select: {
+          id: true,
+          invoiceId: true,
+          userId: true,
+          paymentReference: true,
+          paymentMethod: true,
+        },
+      })
+      if (!receipt) return notFound(reply, 'Receipt not found')
+      if (receipt.invoiceId !== id) return badRequest(reply, 'Receipt does not belong to this invoice')
+      if (receipt.userId !== request.user!.id) return forbidden(reply)
+
+      try {
+        await emailQueue.add('generate_and_send_receipt', {
+          type: 'generate_and_send_receipt',
+          invoiceId: receipt.invoiceId,
+          paymentReference: receipt.paymentReference,
+          paymentMethod: receipt.paymentMethod,
+          forceResend: true,
+        })
+      } catch (err) {
+        request.log.error(
+          { err, receiptId: receipt.id, invoiceId: receipt.invoiceId },
+          'Failed to enqueue receipt resend',
+        )
+        return internalError(reply, 'Could not queue the receipt — please try again.')
+      }
+
+      request.log.info({ receiptId: receipt.id, invoiceId: receipt.invoiceId }, 'Receipt resend enqueued')
+      return reply.code(202).send({ data: { receiptId: receipt.id, queued: true } })
+    },
+  )
 })
 
 export default invoicesRoute

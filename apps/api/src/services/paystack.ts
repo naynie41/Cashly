@@ -21,6 +21,8 @@ interface PaystackWebhookData {
   amount: number
   currency: string
   paid_at: string
+  /** Payment channel: "card" | "bank" | "ussd" | "qr" | "mobile_money" | "bank_transfer" | … */
+  channel?: string
   metadata: Record<string, unknown>
   customer: {
     email: string
