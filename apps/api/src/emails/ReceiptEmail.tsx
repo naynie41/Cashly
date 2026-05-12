@@ -1,6 +1,5 @@
 import {
   Body,
-  Button,
   Container,
   Head,
   Hr,
@@ -13,39 +12,36 @@ import {
 } from '@react-email/components'
 import * as React from 'react'
 
-export interface InvoiceEmailProps {
+export interface ReceiptEmailProps {
   businessName: string
   clientName: string
+  receiptNumber: string
   invoiceNumber: string
-  invoiceTotal: string
-  dueDate: string
-  pdfUrl: string
-  paymentUrl?: string | undefined
-  notes?: string | null | undefined
+  amountPaid: string
+  paidAt: string
+  paymentMethod: string
+  paymentReference: string
   brandColor?: string | undefined
   logoUrl?: string | null | undefined
-  isRevision?: boolean | undefined
 }
 
-export function InvoiceEmail({
+export function ReceiptEmail({
   businessName,
   clientName,
+  receiptNumber,
   invoiceNumber,
-  invoiceTotal,
-  dueDate,
-  pdfUrl,
-  paymentUrl,
-  notes,
+  amountPaid,
+  paidAt,
+  paymentMethod,
+  paymentReference,
   brandColor = '#0A0A09',
   logoUrl,
-  isRevision = false,
-}: InvoiceEmailProps) {
+}: ReceiptEmailProps) {
   return (
     <Html>
       <Head />
       <Preview>
-        {isRevision ? 'Revised invoice' : 'Invoice'} {invoiceNumber} from {businessName} —{' '}
-        {invoiceTotal} due {dueDate}
+        Receipt {receiptNumber} from {businessName} — {amountPaid} received
       </Preview>
       <Body style={body}>
         <Container style={container}>
@@ -62,79 +58,67 @@ export function InvoiceEmail({
                 <Text style={bizName}>{businessName}</Text>
               </Column>
               <Column style={{ verticalAlign: 'top', textAlign: 'right' }}>
-                <Text style={wordmark}>INVOICE</Text>
-                <Text style={invNumber}>
+                <Text style={wordmark}>RECEIPT</Text>
+                <Text style={receiptNumberStyle}>
                   <span style={{ color: brandColor, marginRight: 4 }}>№</span>
-                  {invoiceNumber}
+                  {receiptNumber}
+                </Text>
+                <Text style={{ ...paidPill, color: PAID_GREEN, borderColor: PAID_GREEN }}>
+                  ● Paid
                 </Text>
               </Column>
             </Row>
           </Section>
 
-          {/* Greeting */}
+          {/* Greeting + thank you */}
           <Section style={greetingSection}>
             <Text style={greeting}>Hi {clientName},</Text>
-            {isRevision ? (
-              <>
-                <Text style={{ ...revisedTag, color: brandColor, borderColor: brandColor }}>
-                  ▲ Revised invoice
-                </Text>
-                <Text style={paragraph}>
-                  This invoice has been updated since it was last sent. The figures, due date or
-                  payment link below replace the previous version — please disregard the earlier
-                  email.
-                </Text>
-              </>
-            ) : (
-              <Text style={paragraph}>
-                Your invoice from {businessName} is ready. The full PDF is linked below — you can
-                pay securely online or contact us if you have any questions.
-              </Text>
-            )}
+            <Text style={paragraph}>
+              We've received your payment of <strong style={{ color: '#0A0A09' }}>{amountPaid}</strong>{' '}
+              for invoice {invoiceNumber}. Your official receipt is attached as a PDF for your records.
+              Thank you.
+            </Text>
           </Section>
 
           {/* Summary band */}
           <Section style={summaryBand}>
             <Row>
               <Column style={summaryCell}>
-                <Text style={summaryLbl}>Amount Due</Text>
-                <Text style={summaryValStrong}>{invoiceTotal}</Text>
+                <Text style={summaryLbl}>Amount Paid</Text>
+                <Text style={summaryValStrong}>{amountPaid}</Text>
               </Column>
               <Column style={{ ...summaryCell, ...summaryCellMid }}>
-                <Text style={summaryLbl}>Due Date</Text>
-                <Text style={summaryVal}>{dueDate}</Text>
+                <Text style={summaryLbl}>Paid On</Text>
+                <Text style={summaryVal}>{paidAt}</Text>
               </Column>
               <Column style={summaryCell}>
-                <Text style={summaryLbl}>Reference</Text>
-                <Text style={summaryVal}>{invoiceNumber}</Text>
+                <Text style={summaryLbl}>Method</Text>
+                <Text style={summaryVal}>{capitalise(paymentMethod)}</Text>
               </Column>
             </Row>
           </Section>
 
-          {/* CTAs */}
-          <Section style={ctaSection}>
-            {paymentUrl ? (
-              <Button style={{ ...payBtn, backgroundColor: brandColor }} href={paymentUrl}>
-                Pay {invoiceTotal} →
-              </Button>
-            ) : null}
-            <Text style={pdfLinkWrap}>
-              <a style={pdfLink} href={pdfUrl}>
-                Download the full PDF
-              </a>
-            </Text>
+          {/* References */}
+          <Section style={refs}>
+            <Row>
+              <Column style={refCell}>
+                <Text style={summaryLbl}>Receipt</Text>
+                <Text style={refVal}>{receiptNumber}</Text>
+              </Column>
+              <Column style={refCell}>
+                <Text style={summaryLbl}>Invoice</Text>
+                <Text style={refVal}>{invoiceNumber}</Text>
+              </Column>
+              <Column style={refCell}>
+                <Text style={summaryLbl}>Payment Ref</Text>
+                <Text style={refValSmall}>{paymentReference}</Text>
+              </Column>
+            </Row>
           </Section>
-
-          {notes ? (
-            <Section style={notesSection}>
-              <Text style={notesLabel}>Notes</Text>
-              <Text style={notesText}>{notes}</Text>
-            </Section>
-          ) : null}
 
           <Section style={signOff}>
             <Text style={paragraph}>
-              Thank you for your business.
+              The PDF receipt attached to this email is your official record of payment.
               <br />— {businessName}
             </Text>
           </Section>
@@ -153,7 +137,14 @@ export function InvoiceEmail({
   )
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+function capitalise(s: string): string {
+  if (!s) return s
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+// ── Styles (match InvoiceEmail.tsx — same brand language) ─────────────────────
+
+const PAID_GREEN = '#0F7A52'
 
 const body: React.CSSProperties = {
   backgroundColor: '#ECEAE3',
@@ -167,7 +158,6 @@ const container: React.CSSProperties = {
   backgroundColor: '#ffffff',
   maxWidth: '600px',
   margin: '0 auto',
-  // No border-radius — matches the editorial hard-edge aesthetic of the PDF.
 }
 
 const stripe: React.CSSProperties = {
@@ -210,12 +200,23 @@ const wordmark: React.CSSProperties = {
   lineHeight: 1,
 }
 
-const invNumber: React.CSSProperties = {
+const receiptNumberStyle: React.CSSProperties = {
   margin: '6px 0 0',
   fontSize: '12px',
   fontWeight: 600,
   letterSpacing: '0.06em',
   color: '#6F6F68',
+}
+
+const paidPill: React.CSSProperties = {
+  display: 'inline-block',
+  margin: '8px 0 0',
+  padding: '4px 10px',
+  fontSize: '10px',
+  fontWeight: 700,
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  border: '1px solid currentColor',
 }
 
 const greetingSection: React.CSSProperties = {
@@ -234,17 +235,6 @@ const paragraph: React.CSSProperties = {
   fontSize: '14px',
   color: '#555',
   lineHeight: 1.65,
-}
-
-const revisedTag: React.CSSProperties = {
-  display: 'inline-block',
-  margin: '0 0 12px',
-  padding: '4px 10px',
-  fontSize: '10px',
-  fontWeight: 700,
-  letterSpacing: '0.18em',
-  textTransform: 'uppercase',
-  border: '1px solid currentColor',
 }
 
 const summaryBand: React.CSSProperties = {
@@ -288,55 +278,28 @@ const summaryValStrong: React.CSSProperties = {
   fontSize: '16px',
 }
 
-const ctaSection: React.CSSProperties = {
-  padding: '28px 44px 8px',
-  textAlign: 'center' as const,
+const refs: React.CSSProperties = {
+  padding: '14px 44px 0',
 }
 
-const payBtn: React.CSSProperties = {
-  backgroundColor: '#0A0A09',
-  color: '#ffffff',
-  fontSize: '13px',
-  fontWeight: 700,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  padding: '14px 28px',
-  textDecoration: 'none',
-  display: 'inline-block',
+const refCell: React.CSSProperties = {
+  verticalAlign: 'top',
+  padding: '0 6px',
 }
 
-const pdfLinkWrap: React.CSSProperties = {
-  margin: '14px 0 0',
+const refVal: React.CSSProperties = {
+  margin: '4px 0 0',
   fontSize: '12px',
-  color: '#6F6F68',
-  textAlign: 'center' as const,
-}
-
-const pdfLink: React.CSSProperties = {
-  color: '#0A0A09',
   fontWeight: 600,
-  textDecoration: 'underline',
-  textUnderlineOffset: '3px',
+  color: '#0A0A09',
+  fontFamily:
+    "'Barlow', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
 }
 
-const notesSection: React.CSSProperties = {
-  padding: '24px 44px 0',
-}
-
-const notesLabel: React.CSSProperties = {
-  margin: '0 0 6px',
-  fontSize: '9px',
-  fontWeight: 700,
-  textTransform: 'uppercase',
-  letterSpacing: '0.22em',
-  color: '#6F6F68',
-}
-
-const notesText: React.CSSProperties = {
-  margin: 0,
-  fontSize: '13px',
-  color: '#555',
-  lineHeight: 1.65,
+const refValSmall: React.CSSProperties = {
+  ...refVal,
+  fontSize: '10.5px',
+  wordBreak: 'break-all',
 }
 
 const signOff: React.CSSProperties = {

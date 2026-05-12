@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import { render } from '@react-email/render'
 import { InvoiceEmail } from '../emails/InvoiceEmail.js'
 import { ReminderEmail } from '../emails/ReminderEmail.js'
+import { ReceiptEmail } from '../emails/ReceiptEmail.js'
 import { env } from '../plugins/env.js'
 
 // ── Lazy Resend client ────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ export interface SendInvoiceEmailParams {
   notes?: string | null | undefined
   brandColor?: string | undefined
   logoUrl?: string | null | undefined
+  isRevision?: boolean | undefined
 }
 
 // ── Email sender ──────────────────────────────────────────────────────────────
@@ -63,13 +65,18 @@ export async function sendInvoiceEmail(params: SendInvoiceEmailParams): Promise<
       notes: params.notes,
       brandColor: params.brandColor,
       logoUrl: params.logoUrl,
+      isRevision: params.isRevision ?? false,
     }),
   )
+
+  const subject = params.isRevision
+    ? `Revised invoice ${params.invoiceNumber} from ${params.businessName}`
+    : `Invoice ${params.invoiceNumber} from ${params.businessName}`
 
   const { error } = await resend.emails.send({
     from: env.EMAIL_FROM!,
     to: params.to,
-    subject: `Invoice ${params.invoiceNumber} from ${params.businessName}`,
+    subject,
     html,
   })
 
@@ -118,5 +125,65 @@ export async function sendReminderEmail(params: SendReminderEmailParams): Promis
 
   if (error) {
     throw new Error(`Failed to send reminder email: ${error.message}`)
+  }
+}
+
+// ── Receipt email ─────────────────────────────────────────────────────────────
+
+export interface SendReceiptEmailParams {
+  to: string
+  bcc: string                  // owner's email — always BCC'd
+  clientName: string
+  businessName: string
+  receiptNumber: string
+  invoiceNumber: string
+  amountPaid: string
+  paidAt: string
+  paymentMethod: string
+  paymentReference: string
+  brandColor?: string | undefined
+  logoUrl?: string | null | undefined
+  /** PDF attached as `<receiptNumber>.pdf` */
+  pdfBuffer: Buffer
+}
+
+/**
+ * Sends the receipt email to the client with the owner BCC'd and the PDF
+ * receipt attached. Throws on Resend error so the BullMQ retry kicks in.
+ */
+export async function sendReceiptEmail(params: SendReceiptEmailParams): Promise<void> {
+  const resend = getResend()
+
+  const html = await render(
+    ReceiptEmail({
+      businessName: params.businessName,
+      clientName: params.clientName,
+      receiptNumber: params.receiptNumber,
+      invoiceNumber: params.invoiceNumber,
+      amountPaid: params.amountPaid,
+      paidAt: params.paidAt,
+      paymentMethod: params.paymentMethod,
+      paymentReference: params.paymentReference,
+      brandColor: params.brandColor,
+      logoUrl: params.logoUrl,
+    }),
+  )
+
+  const { error } = await resend.emails.send({
+    from: env.EMAIL_FROM!,
+    to: params.to,
+    bcc: params.bcc,
+    subject: `Receipt ${params.receiptNumber} from ${params.businessName}`,
+    html,
+    attachments: [
+      {
+        filename: `${params.receiptNumber}.pdf`,
+        content: params.pdfBuffer,
+      },
+    ],
+  })
+
+  if (error) {
+    throw new Error(`Failed to send receipt email: ${error.message}`)
   }
 }

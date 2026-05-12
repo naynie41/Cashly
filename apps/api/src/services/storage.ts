@@ -24,7 +24,7 @@ function getS3Client(): S3Client {
   }
 
   _s3 = new S3Client({
-    region: env.AWS_REGION,
+    region: env.AWS_REGION!,
     credentials: {
       accessKeyId: env.AWS_ACCESS_KEY_ID!,
       secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
@@ -101,4 +101,73 @@ export async function getInvoicePdfUrl(userId: string, invoiceId: string): Promi
   // Standard S3 presigned GET URL
   const { GetObjectCommand } = await import('@aws-sdk/client-s3')
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn })
+}
+
+// ── Receipts ──────────────────────────────────────────────────────────────────
+//
+// Receipt PDFs land at `receipts/{userId}/{receiptNumber}.pdf` so a single S3
+// listing per user shows the canonical receipt sequence in number order.
+
+export function receiptS3Key(userId: string, receiptNumber: string): string {
+  return `receipts/${userId}/${receiptNumber}.pdf`
+}
+
+/**
+ * Persists a receipt PDF. The returned `pdfRef` is what gets stored on
+ * Receipt.pdfS3Key — in prod it's an S3 object key, in dev (no S3) it's a
+ * `data:application/pdf;base64,…` URL that getReceiptPdfUrl returns verbatim.
+ * Both shapes are handled transparently by the resolver below.
+ */
+export async function uploadReceiptPdf(
+  userId: string,
+  receiptNumber: string,
+  buffer: Buffer,
+): Promise<{ pdfRef: string }> {
+  if (!s3Configured()) {
+    return { pdfRef: `data:application/pdf;base64,${buffer.toString('base64')}` }
+  }
+
+  const s3 = getS3Client()
+  const bucket = getBucket()
+  const key = receiptS3Key(userId, receiptNumber)
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: 'application/pdf',
+      ServerSideEncryption: 'AES256',
+    }),
+  )
+
+  return { pdfRef: key }
+}
+
+/**
+ * Resolves a Receipt.pdfS3Key into a viewable URL.
+ *
+ * - When the stored value is a `data:application/pdf;base64,…` URL (dev
+ *   fallback), it's returned verbatim — the browser renders it directly.
+ * - When it's an S3 object key, a 7-day signed URL is generated (CloudFront
+ *   when configured, otherwise a standard S3 presigned URL).
+ */
+export async function getReceiptPdfUrl(pdfRef: string): Promise<string | null> {
+  if (pdfRef.startsWith('data:')) return pdfRef
+  if (!s3Configured()) return null
+
+  const s3 = getS3Client()
+  const bucket = getBucket()
+  const expiresIn = 60 * 60 * 24 * 7
+
+  const { GetObjectCommand } = await import('@aws-sdk/client-s3')
+  const command = new GetObjectCommand({ Bucket: bucket, Key: pdfRef })
+
+  if (env.CLOUDFRONT_DOMAIN) {
+    const s3Url = await getSignedUrl(s3, command, { expiresIn })
+    const s3UrlObj = new URL(s3Url)
+    return `https://${env.CLOUDFRONT_DOMAIN}${s3UrlObj.pathname}${s3UrlObj.search}`
+  }
+
+  return getSignedUrl(s3, command, { expiresIn })
 }

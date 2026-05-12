@@ -1,3 +1,17 @@
+# Local dev path:
+#   docker compose up -d        ← auto-loads docker-compose.override.yml.
+#   In the dev stage the API runs `node --env-file=.env …` and Next.js loads
+#   `.env.local` natively, so each process re-reads the file on every restart.
+#   That means editing `apps/api/.env` only needs `docker compose restart api`
+#   to take effect — no `--force-recreate` dance.
+#
+# Prod / smoke path:
+#   docker compose -f docker-compose.yml up         ← no override, prod image.
+#   The prod CMD (`node dist/index.js`) has no --env-file flag, so to test the
+#   production image locally you'd need to either uncomment `env_file:` below
+#   or pass env vars directly:
+#     docker compose -f docker-compose.yml --env-file apps/api/.env up
+#
 services:
   api:
     image: cashly-api
@@ -8,8 +22,6 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3001"
-    env_file:
-      - apps/api/.env
     networks:
       - cashly
     healthcheck:
@@ -28,8 +40,6 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    env_file:
-      - apps/web/.env.local
     environment:
       INTERNAL_API_URL: http://api:3001
     depends_on:

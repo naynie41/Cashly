@@ -34,10 +34,12 @@ model user {
   invoicePrefix    String   @default("INV")
   onboardingDone   Boolean  @default(false)
 
-  sessions session[]
-  accounts account[]
-  clients  Client[]
-  invoices Invoice[]
+  sessions          session[]
+  accounts          account[]
+  clients           Client[]
+  invoices          Invoice[]
+  receipts          Receipt[]
+  receiptSequences  ReceiptSequence[]
 }
 
 model session {
@@ -111,12 +113,17 @@ model Invoice {
   pdfUrl        String?
   paymentUrl    String?
   notes         String?
+  // Set when a SENT/OVERDUE invoice is edited; cleared on resend.
+  // Used to surface a "Revised — Resend to update client" banner and to
+  // mark the resend email as a revision.
+  revisedAt     DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   user          user          @relation(fields: [userId], references: [id])
   client        Client        @relation(fields: [clientId], references: [id])
   lineItems     LineItem[]
   payment       Payment?
+  receipts      Receipt[]
 }
 
 model LineItem {
@@ -137,6 +144,50 @@ model Payment {
   currency    String
   paidAt      DateTime
   invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+}
+
+// ── Receipts ─────────────────────────────────────────────────────────────────
+//
+// One Receipt is issued per successful Payment (per (invoiceId, paymentReference)
+// pair). The receiptNumber follows RCP-YYYY-NNNN, scoped per-user, per-year, and
+// is allocated atomically by transactionally incrementing the matching
+// ReceiptSequence row. The compound unique index on (invoiceId, paymentReference)
+// guarantees the generate-and-send-receipt job is idempotent.
+
+model Receipt {
+  id               String    @id @default(uuid())
+  userId           String
+  invoiceId        String
+  receiptNumber    String    // e.g. "RCP-2026-0001" — unique per user
+  paymentReference String    // Paystack reference
+  amountPaid       Decimal   @db.Decimal(12, 2)
+  currency         String
+  paidAt           DateTime
+  paymentMethod    String    // e.g. "card", "bank", "ussd", "unknown"
+  pdfS3Key         String?   // Set after the PDF is uploaded
+  emailSentAt      DateTime? // Set after the email goes out
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user    user    @relation(fields: [userId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@unique([userId, receiptNumber])
+  @@unique([invoiceId, paymentReference])
+  @@index([invoiceId])
+  @@index([userId, paidAt])
+}
+
+// Per-user, per-year counter. Updated transactionally inside the receipt
+// allocation flow; never read or written outside that flow.
+model ReceiptSequence {
+  userId    String
+  year      Int
+  lastValue Int  @default(0)
+
+  user user @relation(fields: [userId], references: [id])
+
+  @@id([userId, year])
 }
 
 enum InvoiceStatus {

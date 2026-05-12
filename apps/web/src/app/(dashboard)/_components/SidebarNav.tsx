@@ -73,9 +73,6 @@ export default function SidebarNav() {
           <SignOutIcon />
           <span className="font-sans">{signingOut ? 'Signing out…' : 'Sign Out'}</span>
         </button>
-        <p className="mt-3 px-3 font-barlow text-[10px] uppercase tracking-widest text-white/20">
-          Portfolio Project
-        </p>
       </div>
     </aside>
   )
